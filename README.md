@@ -72,12 +72,24 @@ The APK does **not** require root — it only needs read access to your input fi
 
 ## Compatibility
 
-- Designed for **Mali-G57 MC2 GPUs** on MediaTek SoCs. The patch is GPU-binding-level, so it works on every SoC that ships Mali-G57 MC2:
-  - **mt6789 / Helio G99** — TECNO POVA 4 series, Infinix mt6789 devices.
-  - **MT6833 / Dimensity 700 / 720 / 810** — TECNO POVA 5 (`LH7n`), TECNO POVA 5 Pro (`LH8n`), Realme 8 5G, Redmi Note 11 SE, etc.
-  - **MT6855 / Dimensity 6080 / 6020** (descendant of Dimensity 700) — Infinix Note 30, TECNO Camon 20 series, Realme C67 5G, Redmi Note 12R, Poco M6 5G, etc.
-  - **Dimensity 7020 / 7025** — same Mali-G57 MC2; Realme 11x 5G, Realme Narzo 60x, Infinix Hot 50 Pro, etc.
-- The prop pack uses mt6789-style SurfaceFlinger keys but most of them are SoC-agnostic. The patcher does **not** hard-gate by device — you decide whether your device is compatible. As long as `getprop ro.hardware.egl` returns `mali` and your GPU is **Mali-G57 MC2** (not MC1, not MC4), the patch should apply cleanly.
+Designed for any device with a **Mali-G57 MC2 GPU**. The patch is GPU-binding-level, so any Mali-G57 MC2 device should work in theory. The list below tracks which ones have actually been tested.
+
+### Tested
+
+| Device | SoC | Codename |
+|---|---|---|
+| TECNO POVA 4 / 4 Pro | MediaTek Helio G99 (mt6789) | — |
+| TECNO POVA 5 | Dimensity 700 (MT6833) | LH7n |
+| TECNO POVA 5 Pro | Dimensity 700 (MT6833) | LH8n |
+| Devices on Dimensity 6080 | MediaTek Dimensity 6080 (MT6855) | — |
+
+### Untested but should work
+
+Any other phone where:
+- `getprop ro.hardware.egl` returns `mali`
+- The GPU is **Mali-G57 MC2** (not MC1, not MC4)
+
+The patcher does **not** hard-gate by device — you decide whether your device is compatible. If you successfully patch and boot a device that isn't on the tested list, please open an issue / PR adding it to the table.
 
 ## Building from source
 
