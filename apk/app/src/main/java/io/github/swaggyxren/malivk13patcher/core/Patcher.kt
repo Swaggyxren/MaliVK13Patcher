@@ -44,13 +44,34 @@ class Patcher(private val context: Context) {
     }
 
     /**
+     * User-tunable pack settings, mirrors core.PackOptions on the desktop side
+     * and the Pack dialog in MIO-KITCHEN.
+     */
+    data class PackOptions(
+        val erofsCompression: String = "lz4hc",
+        /** null means "use mkfs.erofs default" (no level suffix). */
+        val erofsLevel: Int? = 9,
+        /** null means "use mkfs.erofs default" (no -T flag). */
+        val timestamp: Long? = null,
+    ) {
+        fun erofsCompressArg(): String =
+            if (erofsLevel == null) erofsCompression else "$erofsCompression,$erofsLevel"
+    }
+
+    /**
      * Run the full patch pipeline.
      *
      * @param input  SAF Uri of the stock vendor.img
      * @param output SAF Uri of the file to write the patched image to
+     * @param pack   pack option overrides
      * @param log    callback to stream log lines to the UI
      */
-    fun run(input: Uri, output: Uri, log: (String) -> Unit): PatchResult {
+    fun run(
+        input: Uri,
+        output: Uri,
+        pack: PackOptions = PackOptions(),
+        log: (String) -> Unit,
+    ): PatchResult {
         log("workspace: ${workspace.absolutePath}")
 
         extractPayloadAssets()
@@ -120,9 +141,10 @@ class Patcher(private val context: Context) {
                 "erofs" -> runTool(
                     "libmkfs_erofs.so",
                     buildList {
-                        add("-zlz4hc,9")
+                        add("-z${pack.erofsCompressArg()}")
                         add("--mount-point=/vendor")
                         add("-U$uuid")
+                        pack.timestamp?.let { add("-T$it") }
                         if (fsConfig != null) add("--fs-config-file=${fsConfig.absolutePath}")
                         if (fileContexts != null) add("--file-contexts=${fileContexts.absolutePath}")
                         add(outRaw.absolutePath)
