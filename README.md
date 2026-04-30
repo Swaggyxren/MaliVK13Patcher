@@ -72,8 +72,10 @@ The APK does **not** require root — it only needs read access to your input fi
 
 ## Compatibility
 
-- Designed for **Mali-G57 MC2 GPUs** on **MediaTek mt6789 / Helio G99** (TECNO POVA 4 series, Infinix mt6789 devices, etc.).
-- Probably works on other Mali-G57 MC2 devices too, but the prop pack assumes mt6789-style SurfaceFlinger configs. The patcher does **not** gate by device — you decide whether your device is compatible.
+- Designed for **Mali-G57 MC2 GPUs** on MediaTek SoCs:
+  - **mt6789 / Helio G99** — TECNO POVA 4 series, Infinix mt6789 devices, etc.
+  - **MT6833 / Dimensity 700** — TECNO POVA 5 (`LH7n`), TECNO POVA 5 Pro (`LH8n`), and other Dimensity 700 / 720 / 810 phones with Mali-G57 MC2.
+- Probably works on other Mali-G57 MC2 devices too. The prop pack assumes mt6789-style SurfaceFlinger configs but most of the keys are SoC-agnostic. The patcher does **not** gate by device — you decide whether your device is compatible.
 
 ## Building from source
 
