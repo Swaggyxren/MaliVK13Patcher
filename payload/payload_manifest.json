@@ -14,12 +14,19 @@
       "mt6789v_b",
       "mt6833",
       "mt6833v",
-      "mt6833p"
+      "mt6833p",
+      "mt6855",
+      "mt6855v",
+      "mt6877",
+      "mt6886"
     ],
     "device_hint": [
       "TECNO POVA 4 / 4 Pro (mt6789, Helio G99)",
       "TECNO POVA 5 / LH7n (MT6833, Dimensity 700)",
       "TECNO POVA 5 Pro / LH8n (MT6833, Dimensity 700)",
+      "Infinix Note 30 / TECNO Camon 20 (MT6855, Dimensity 6080)",
+      "Realme C67 5G / Redmi Note 12R / Poco M6 5G (MT6855, Dimensity 6020/6080)",
+      "Realme 11x 5G / Narzo 60x / Infinix Hot 50 Pro (Dimensity 7020/7025)",
       "Other Mali-G57 MC2 devices (advisory \u2014 user verifies)"
     ]
   },

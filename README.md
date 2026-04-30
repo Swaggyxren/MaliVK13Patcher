@@ -72,10 +72,12 @@ The APK does **not** require root — it only needs read access to your input fi
 
 ## Compatibility
 
-- Designed for **Mali-G57 MC2 GPUs** on MediaTek SoCs:
-  - **mt6789 / Helio G99** — TECNO POVA 4 series, Infinix mt6789 devices, etc.
-  - **MT6833 / Dimensity 700** — TECNO POVA 5 (`LH7n`), TECNO POVA 5 Pro (`LH8n`), and other Dimensity 700 / 720 / 810 phones with Mali-G57 MC2.
-- Probably works on other Mali-G57 MC2 devices too. The prop pack assumes mt6789-style SurfaceFlinger configs but most of the keys are SoC-agnostic. The patcher does **not** gate by device — you decide whether your device is compatible.
+- Designed for **Mali-G57 MC2 GPUs** on MediaTek SoCs. The patch is GPU-binding-level, so it works on every SoC that ships Mali-G57 MC2:
+  - **mt6789 / Helio G99** — TECNO POVA 4 series, Infinix mt6789 devices.
+  - **MT6833 / Dimensity 700 / 720 / 810** — TECNO POVA 5 (`LH7n`), TECNO POVA 5 Pro (`LH8n`), Realme 8 5G, Redmi Note 11 SE, etc.
+  - **MT6855 / Dimensity 6080 / 6020** (descendant of Dimensity 700) — Infinix Note 30, TECNO Camon 20 series, Realme C67 5G, Redmi Note 12R, Poco M6 5G, etc.
+  - **Dimensity 7020 / 7025** — same Mali-G57 MC2; Realme 11x 5G, Realme Narzo 60x, Infinix Hot 50 Pro, etc.
+- The prop pack uses mt6789-style SurfaceFlinger keys but most of them are SoC-agnostic. The patcher does **not** hard-gate by device — you decide whether your device is compatible. As long as `getprop ro.hardware.egl` returns `mali` and your GPU is **Mali-G57 MC2** (not MC1, not MC4), the patch should apply cleanly.
 
 ## Building from source
 
