@@ -16,13 +16,29 @@ datas = [
     (str(REPO_ROOT / "core" / "patcher.py"), "core"),
     (str(REPO_ROOT / "core" / "__init__.py"), "core"),
     (str(REPO_ROOT / "payload"), "payload"),
-    (str(REPO_ROOT / "bin" / "Linux" / "x86_64"), "bin/Linux/x86_64"),
+]
+
+# IMPORTANT: list the toolchain ELFs under `binaries` (typecode 'b'), NOT
+# `datas` (typecode 'd'). In PyInstaller's onefile mode, datas are extracted
+# at runtime with mode 0644 (no execute bit) which would make subprocess.run()
+# raise PermissionError when the patcher tries to invoke them.
+_LINUX_TOOLS = (
+    "extract.erofs",
+    "mkfs.erofs",
+    "simg2img",
+    "img2simg",
+    "mke2fs",
+    "e2fsdroid",
+)
+binaries = [
+    (str(REPO_ROOT / "bin" / "Linux" / "x86_64" / name), "bin/Linux/x86_64")
+    for name in _LINUX_TOOLS
 ]
 
 a = Analysis(
     [str(REPO_ROOT / "windows" / "src" / "gui.py")],
     pathex=[str(REPO_ROOT)],
-    binaries=[],
+    binaries=binaries,
     datas=datas,
     hiddenimports=[],
     hookspath=[],
