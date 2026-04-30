@@ -72,16 +72,14 @@ The APK does **not** require root — it only needs read access to your input fi
 
 ## Compatibility
 
-Designed for any device with a **Mali-G57 MC2 GPU**. The patch is GPU-binding-level, so any Mali-G57 MC2 device should work in theory. The list below tracks which ones have actually been tested.
+Designed for any device with a **Mali-G57 MC2 GPU**. The patch is GPU-binding-level, so any Mali-G57 MC2 device should work in theory. The list below tracks the SoC families that have actually been tested.
 
 ### Tested
 
-| Device | SoC | Codename |
-|---|---|---|
-| TECNO POVA 4 / 4 Pro | MediaTek Helio G99 (mt6789) | — |
-| TECNO POVA 5 | Dimensity 700 (MT6833) | LH7n |
-| TECNO POVA 5 Pro | Dimensity 700 (MT6833) | LH8n |
-| Devices on Dimensity 6080 | MediaTek Dimensity 6080 (MT6855) | — |
+| SoC | Tested devices |
+|---|---|
+| MediaTek Helio G99 (mt6789) | TECNO POVA 4 / 4 Pro, TECNO POVA 5 (`LH7n`), other Helio G99 phones |
+| MediaTek Dimensity 6080 (MT6855) | TECNO POVA 5 Pro (`LH8n`), other Dimensity 6080 phones |
 
 ### Untested but should work
 

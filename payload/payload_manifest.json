@@ -8,14 +8,11 @@
     "gpu_hint": "Mali-G57 MC2",
     "soc_family_hint": [
       "mt6789",
-      "mt6833",
       "mt6855"
     ],
     "tested_devices": [
-      "TECNO POVA 4 / 4 Pro (mt6789, Helio G99)",
-      "TECNO POVA 5 / LH7n (MT6833, Dimensity 700)",
-      "TECNO POVA 5 Pro / LH8n (MT6833, Dimensity 700)",
-      "Dimensity 6080 (MT6855) devices"
+      "Helio G99 (mt6789) devices: TECNO POVA 4 / 4 Pro, TECNO POVA 5 (LH7n)",
+      "Dimensity 6080 (MT6855) devices: TECNO POVA 5 Pro (LH8n)"
     ]
   },
   "overlay_root": "payload/vendor",
