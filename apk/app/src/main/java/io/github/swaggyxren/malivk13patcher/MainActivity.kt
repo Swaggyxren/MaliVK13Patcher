@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
@@ -14,12 +15,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -100,6 +104,10 @@ private val LightPalette = lightColorScheme(
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Explicit edge-to-edge so we control insets ourselves; on Android 15+
+        // (targetSdk=35) this is enforced by default, so calling it is just
+        // belt-and-suspenders for older versions.
+        enableEdgeToEdge()
         setContent {
             // Default follows system; user can override at runtime.
             var darkTheme by remember { mutableStateOf<Boolean?>(null) }
@@ -107,13 +115,21 @@ class MainActivity : ComponentActivity() {
             val effectiveDark = darkTheme ?: systemDark
             MaterialTheme(colorScheme = if (effectiveDark) DarkPalette else LightPalette) {
                 Surface(
+                    // Background paints edge-to-edge under status / nav / cutouts;
+                    // safeDrawing inset is applied to the content inside.
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,
                 ) {
-                    PatcherScreen(
-                        isDark = effectiveDark,
-                        onToggleTheme = { darkTheme = !effectiveDark },
-                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .windowInsetsPadding(WindowInsets.safeDrawing),
+                    ) {
+                        PatcherScreen(
+                            isDark = effectiveDark,
+                            onToggleTheme = { darkTheme = !effectiveDark },
+                        )
+                    }
                 }
             }
         }
