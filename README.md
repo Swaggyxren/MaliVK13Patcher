@@ -15,15 +15,32 @@ The output is **another `vendor.img`** — this tool does *not* flash anything. 
 
 The patch is the **dobrogrind `Mali_38p1_VK_1-3` Magisk module**, applied directly into a vendor image (instead of as a Magisk overlay) so it survives reboots without root. The patch:
 
-1. **Replaces** these Mali userspace blobs with the r38p1 build (the same blobs that MillenniumOSS uses in [their mt6789-common device tree](https://github.com/MillenniumOSS/android_device_tecno_mt6789-common/commit/28be9e37ef73b8bb4c0341eb0a7095429b626d84)):
-   - `vendor/lib(64)/egl/libGLES_mali.so`
-   - `vendor/lib(64)/hw/vulkan.mali.so`
-   - `vendor/lib(64)/libarm_egl_properties_sysprop.so`
-   - `vendor/lib(64)/libarm_gralloc_properties_sysprop.so`
-   - `vendor/lib(64)/liblibarm_mali_config_sysprops.so`
-   - `vendor/lib64/libgpumem.so`, `libgpuservice.so`, `libgpuwork.so`
-2. **Merges** ~64 GPU/SurfaceFlinger props into `vendor/build.prop` (EGL hal_format configs, dynamic frame durations, opengles version, etc.).
-3. **Repacks** to the original filesystem (EROFS or ext4) with the original UUID rerolled.
+1. **Replaces** these Mali userspace blobs with the r38p1 build (the same blobs that MillenniumOSS uses in [their mt6789-common device tree](https://github.com/MillenniumOSS/android_device_tecno_mt6789-common/commit/28be9e37ef73b8bb4c0341eb0a7095429b626d84)). The full overlay tree shipped in `payload/vendor/` and dropped into the unpacked vendor partition:
+
+   ```text
+   vendor/
+   ├── lib/                                       (32-bit ABI)
+   │   ├── egl/libGLES_mali.so                    ← r38p1 GLES driver
+   │   ├── hw/vulkan.mali.so                      ← r38p1 Vulkan HAL
+   │   ├── libarm_egl_properties_sysprop.so
+   │   ├── libarm_gralloc_properties_sysprop.so
+   │   └── liblibarm_mali_config_sysprops.so
+   └── lib64/                                     (64-bit ABI)
+       ├── egl/libGLES_mali.so                    ← r38p1 GLES driver (42 MB)
+       ├── hw/vulkan.mali.so                      ← r38p1 Vulkan HAL
+       ├── libarm_egl_properties_sysprop.so
+       ├── libarm_gralloc_properties_sysprop.so
+       ├── libgpumem.so
+       ├── libgpuservice.so
+       ├── libgpuwork.so
+       └── liblibarm_mali_config_sysprops.so
+   ```
+
+   Identical to the layout inside the dobrogrind `Mali_38p1_VK_1-3` zip. The patcher walks `payload/vendor/` recursively and copies every file into the unpacked vendor tree, creating `lib/`, `lib/egl/`, `lib/hw/`, `lib64/`, `lib64/egl/`, `lib64/hw/` if they don't exist and overwriting on conflict. `fs_config` and `file_contexts` rows are auto-generated for any new files so `mkfs.erofs` accepts them on repack.
+
+2. **Merges** ~64 GPU/SurfaceFlinger props into `vendor/build.prop` (EGL hal_format configs, dynamic frame durations, opengles version, etc.). Existing keys are replaced; new keys are appended; the merge is idempotent so re-running the patcher on an already-patched image is a no-op.
+
+3. **Repacks** to the original filesystem (EROFS or ext4) with the original UUID rerolled. If the input was sparse, the output is converted back to sparse via `img2simg`.
 
 The `vendor` partition is the only thing modified — `boot`, `system`, `super`, `userdata` are untouched.
 
