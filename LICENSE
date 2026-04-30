@@ -1,0 +1,27 @@
+                    GNU AFFERO GENERAL PUBLIC LICENSE
+                       Version 3, 19 November 2007
+
+ Copyright (C) 2007 Free Software Foundation, Inc. <https://fsf.org/>
+ Everyone is permitted to copy and distribute verbatim copies
+ of this license document, but changing it is not allowed.
+
+This project is licensed under the GNU Affero General Public License v3.0.
+
+The full text of the AGPL-3.0 is available at:
+    https://www.gnu.org/licenses/agpl-3.0.txt
+
+This project bundles software under the following compatible licenses:
+
+  - extract.erofs, mkfs.erofs            from sekaiacg/erofs-utils    (GPL-2.0)
+  - simg2img, img2simg                   from nmeum/android-tools     (Apache-2.0)
+  - mke2fs, e2fsdroid                    from e2fsprogs               (GPL-2.0)
+  - cross-platform binaries vendored from ColdWindScholar/MIO-KITCHEN-SOURCE (AGPL-3.0)
+
+The Mali r38p1 driver blobs included in payload/ are proprietary ARM binaries
+extracted from publicly distributed Android firmware images. They are not
+part of this project's source code and remain the property of ARM Holdings.
+They are bundled here purely as configuration data for the patcher and may be
+removed by the end user before redistribution if required by applicable law.
+
+For the complete AGPL-3.0 license text, see:
+    https://github.com/ColdWindScholar/MIO-KITCHEN-SOURCE/blob/main/LICENSE

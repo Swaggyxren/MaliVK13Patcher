@@ -1,0 +1,36 @@
+{
+  "_comment": "Manifest describing what the patcher overlays onto a stock vendor.img. The patcher copies every file under payload/vendor/ into the unpacked vendor tree (creating dirs as needed) and merges the props in system.prop into vendor/build.prop.",
+  "name": "Mali 38p1 Vulkan 1.3 (mt6789 / Mali-G57 MC2)",
+  "version": "1",
+  "source_module": "Mali_38p1_VK_1-3 (dobrogrind) + MillenniumOSS mt6789-common 28be9e3",
+  "compatible": {
+    "ro.hardware.egl": "mali",
+    "soc_family_hint": [
+      "mt6789",
+      "mt6789v",
+      "mt6789v_aaa",
+      "mt6789v_a",
+      "mt6789v_b"
+    ],
+    "gpu_hint": "Mali-G57 MC2"
+  },
+  "overlay_root": "payload/vendor",
+  "vendor_relative_files": [
+    "lib/egl/libGLES_mali.so",
+    "lib/hw/vulkan.mali.so",
+    "lib/libarm_egl_properties_sysprop.so",
+    "lib/libarm_gralloc_properties_sysprop.so",
+    "lib/liblibarm_mali_config_sysprops.so",
+    "lib64/egl/libGLES_mali.so",
+    "lib64/hw/vulkan.mali.so",
+    "lib64/libarm_egl_properties_sysprop.so",
+    "lib64/libarm_gralloc_properties_sysprop.so",
+    "lib64/libgpumem.so",
+    "lib64/libgpuservice.so",
+    "lib64/libgpuwork.so",
+    "lib64/liblibarm_mali_config_sysprops.so"
+  ],
+  "build_prop_path": "build.prop",
+  "system_prop_source": "payload/system.prop",
+  "build_prop_merge_strategy": "replace_or_append"
+}

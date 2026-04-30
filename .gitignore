@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+build/
+dist/
+*.spec.bak
+.ruff_cache/
+.pytest_cache/
+
+# Android / Gradle
+apk/.gradle/
+apk/build/
+apk/app/build/
+apk/local.properties
+apk/captures/
+apk/.idea/
+apk/*.iml
+apk/app/release/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Local test artifacts
+fake_vendor.img
+fake_vendor*.img
+malivk13_*/

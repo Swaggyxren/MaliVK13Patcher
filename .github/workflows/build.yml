@@ -1,0 +1,133 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  release:
+    types: [created]
+
+jobs:
+  # -------------------------------------------------------------------------
+  # Run the Python core patcher against a synthetic EROFS image (sparse + raw)
+  # to make sure the unpack / overlay / repack pipeline keeps working.
+  # -------------------------------------------------------------------------
+  test-core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Make bundled Linux toolchain executable
+        run: chmod +x bin/Linux/x86_64/*
+
+      - name: Build a synthetic EROFS vendor.img
+        run: |
+          set -e
+          mkdir -p fake_vendor/lib64/egl fake_vendor/lib64/hw \
+                   fake_vendor/lib/egl fake_vendor/lib/hw
+          echo "STOCK lib64/egl/libGLES_mali.so v37" > fake_vendor/lib64/egl/libGLES_mali.so
+          echo "STOCK lib64/hw/vulkan.mali.so v37"  > fake_vendor/lib64/hw/vulkan.mali.so
+          echo "STOCK lib/egl/libGLES_mali.so v37"  > fake_vendor/lib/egl/libGLES_mali.so
+          echo "STOCK lib/hw/vulkan.mali.so v37"    > fake_vendor/lib/hw/vulkan.mali.so
+          echo "STOCK libgpumem"                    > fake_vendor/lib64/libgpumem.so
+          cat > fake_vendor/build.prop <<'EOF'
+          ro.hardware.egl=mali
+          ro.opengles.version=196608
+          graphics.gpu.profiler.support=false
+          EOF
+          ./bin/Linux/x86_64/mkfs.erofs -zlz4hc,9 --mount-point=/vendor \
+            fake_vendor.img fake_vendor
+
+      - name: Run patcher on raw input
+        run: python3 core/patcher.py fake_vendor.img fake_vendor.patched.img
+
+      - name: Convert raw -> sparse and re-run
+        run: |
+          ./bin/Linux/x86_64/img2simg fake_vendor.img fake_vendor.sparse.img
+          python3 core/patcher.py fake_vendor.sparse.img fake_vendor.sparse.patched.img
+
+      - name: Verify patched image roundtrips
+        run: |
+          mkdir -p verify
+          ./bin/Linux/x86_64/extract.erofs -i fake_vendor.patched.img -x -f -s -o verify
+          ls -la verify
+          # libGLES_mali.so should now be the 42 MB r38p1 build
+          test -s verify/fake_vendor.patched/lib64/egl/libGLES_mali.so
+          actual=$(stat -c %s verify/fake_vendor.patched/lib64/egl/libGLES_mali.so)
+          if [ "$actual" -ne 42397200 ]; then
+            echo "Expected libGLES_mali.so size 42397200, got $actual" >&2
+            exit 1
+          fi
+          # build.prop should have new prop appended
+          grep -q ro.opengles.version=196610 verify/fake_vendor.patched/build.prop
+
+  # -------------------------------------------------------------------------
+  # Lint the Python with ruff (style + obvious bugs).
+  # -------------------------------------------------------------------------
+  lint-python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff==0.6.9
+      - run: ruff check core/ windows/src/
+
+  # -------------------------------------------------------------------------
+  # Build the Windows EXE with PyInstaller and upload as a workflow artifact.
+  # -------------------------------------------------------------------------
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r windows/requirements.txt
+      - run: pyinstaller windows/MaliVK13Patcher.spec --noconfirm
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MaliVK13Patcher-windows
+          path: dist/MaliVK13Patcher.exe
+          if-no-files-found: error
+      - name: Attach to release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/MaliVK13Patcher.exe
+
+  # -------------------------------------------------------------------------
+  # Build the APK with Gradle and upload as a workflow artifact.
+  # -------------------------------------------------------------------------
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+      - name: Build APK (assembleRelease)
+        run: |
+          chmod +x bin/Android/aarch64/*
+          cd apk
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleRelease
+      - name: Rename APK
+        run: |
+          mkdir -p out
+          cp apk/app/build/outputs/apk/release/app-release-unsigned.apk \
+             out/MaliVK13Patcher.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MaliVK13Patcher-android
+          path: out/MaliVK13Patcher.apk
+          if-no-files-found: error
+      - name: Attach to release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: out/MaliVK13Patcher.apk

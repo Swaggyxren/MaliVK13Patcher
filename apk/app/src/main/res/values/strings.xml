@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Mali VK1.3 Patcher</string>
+    <string name="title">Mali-G57 MC2 / Vulkan 1.3 vendor.img Patcher</string>
+    <string name="subtitle">Pick a stock vendor.img and an output path. The app patches it with the Mali 38p1 driver overlay so the device reports Vulkan 1.3. You still need to flash the result yourself with fastboot.</string>
+    <string name="pick_input">Pick input vendor.img</string>
+    <string name="pick_output">Pick output location</string>
+    <string name="patch">Patch</string>
+    <string name="patching">Patching…</string>
+    <string name="done">Patch complete</string>
+    <string name="failed">Patch failed</string>
+</resources>
