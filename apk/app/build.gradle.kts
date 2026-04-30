@@ -95,6 +95,10 @@ dependencies {
 // -----------------------------------------------------------------------------
 val nativeBinariesSrc =
     rootProject.layout.projectDirectory.dir("../bin/Android/aarch64").asFile
+// jniLibs.srcDirs points at the parent directory that *contains* per-ABI
+// folders (e.g. arm64-v8a/), so the Copy task writes into a child folder.
+val jniLibsRoot =
+    layout.buildDirectory.dir("generated/jniLibs")
 val nativeBinariesDst =
     layout.buildDirectory.dir("generated/jniLibs/arm64-v8a")
 
@@ -119,7 +123,7 @@ val prepareNativeBinaries =
     }
 
 android.sourceSets.getByName("main").jniLibs.srcDirs(
-    nativeBinariesDst,
+    jniLibsRoot,
 )
 
 tasks.withType<MergeSourceSetFolders>().configureEach {

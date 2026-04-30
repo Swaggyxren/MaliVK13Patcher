@@ -49,18 +49,23 @@ jobs:
 
       - name: Verify patched image roundtrips
         run: |
+          set -eux
           mkdir -p verify
           ./bin/Linux/x86_64/extract.erofs -i fake_vendor.patched.img -x -f -s -o verify
           ls -la verify
-          # libGLES_mali.so should now be the 42 MB r38p1 build
-          test -s verify/fake_vendor.patched/lib64/egl/libGLES_mali.so
-          actual=$(stat -c %s verify/fake_vendor.patched/lib64/egl/libGLES_mali.so)
+          # extract.erofs derives the unpacked dir name from the image basename,
+          # which can vary slightly across versions. Locate libGLES_mali.so by glob.
+          libpath=$(find verify -path '*/lib64/egl/libGLES_mali.so' | head -n1)
+          test -n "$libpath"
+          actual=$(stat -c %s "$libpath")
           if [ "$actual" -ne 42397200 ]; then
             echo "Expected libGLES_mali.so size 42397200, got $actual" >&2
             exit 1
           fi
-          # build.prop should have new prop appended
-          grep -q ro.opengles.version=196610 verify/fake_vendor.patched/build.prop
+          buildprop=$(find verify -name build.prop | head -n1)
+          test -n "$buildprop"
+          # The Mali system.prop bumps ro.opengles.version up to 196610 (3.2)
+          grep -q '^ro.opengles.version=196610' "$buildprop"
 
   # -------------------------------------------------------------------------
   # Lint the Python with ruff (style + obvious bugs).
