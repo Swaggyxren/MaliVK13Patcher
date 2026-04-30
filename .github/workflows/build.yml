@@ -104,6 +104,34 @@ jobs:
           files: dist/MaliVK13Patcher.exe
 
   # -------------------------------------------------------------------------
+  # Build the Linux ELF with PyInstaller and upload as a workflow artifact.
+  # Same Tkinter GUI as the Windows EXE; bundles the Linux x86_64 toolchain.
+  # -------------------------------------------------------------------------
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tkinter
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq python3-tk
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r windows/requirements.txt
+      - name: Make bundled Linux toolchain executable
+        run: chmod +x bin/Linux/x86_64/*
+      - run: pyinstaller linux/MaliVK13Patcher.spec --noconfirm
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MaliVK13Patcher-linux
+          path: dist/MaliVK13Patcher
+          if-no-files-found: error
+      - name: Attach to release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/MaliVK13Patcher
+
+  # -------------------------------------------------------------------------
   # Build the APK with Gradle and upload as a workflow artifact.
   # -------------------------------------------------------------------------
   build-apk:

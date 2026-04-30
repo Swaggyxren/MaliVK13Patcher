@@ -49,11 +49,23 @@ If any of those isn't true, the patched image **will not boot**. This is not a t
 
 1. Download `MaliVK13Patcher.exe` from the latest [GitHub Release](../../releases).
 2. Double-click. Pick your stock `vendor.img`. Pick an output path. Click **Patch**.
-3. Boot phone into fastboot. Flash the patched image:
-   ```
-   fastboot flash vendor vendor_mali_vk13.img
+3. Flash with fastboot:
+   ```bash
+   fastboot flash vendor MaliVK13Patcher_output.img
    fastboot reboot
    ```
+
+## Usage — Linux
+
+1. Download `MaliVK13Patcher` (single-file ELF) from the latest [GitHub Release](../../releases).
+2. `chmod +x MaliVK13Patcher && ./MaliVK13Patcher`. Pick your stock `vendor.img`. Pick an output path. Click **Patch**.
+3. Flash with fastboot:
+   ```bash
+   fastboot flash vendor MaliVK13Patcher_output.img
+   fastboot reboot
+   ```
+
+The Linux build is x86_64 only and uses the same Tkinter GUI as the Windows version; if your distro doesn't already have Tk libs, install `python3-tk` (Debian/Ubuntu) or `tk` (Arch / Fedora `python3-tkinter`). The bundled toolchain inside the ELF is statically built and works on glibc 2.28+ (Debian 10+ / Ubuntu 18.04+ / etc.).
 
 ## Usage — Android APK
 
@@ -91,14 +103,28 @@ The patcher does **not** hard-gate by device — you decide whether your device 
 
 ## Building from source
 
-### Windows EXE
+### Windows EXE / Linux ELF
 
-```bash
+Same stack on both platforms (Python + Tkinter + PyInstaller); only the spec file differs (it bundles the matching `bin/<OS>/<ARCH>/` toolchain).
+
+**Windows:**
+```bat
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r windows/requirements.txt
 pyinstaller windows/MaliVK13Patcher.spec --noconfirm
-# Output: dist/MaliVK13Patcher.exe
+:: Output: dist/MaliVK13Patcher.exe
+```
+
+**Linux:**
+```bash
+sudo apt-get install -y python3-tk      # or your distro's tk package
+python3 -m venv .venv
+. .venv/bin/activate
+pip install -r windows/requirements.txt
+chmod +x bin/Linux/x86_64/*
+pyinstaller linux/MaliVK13Patcher.spec --noconfirm
+# Output: dist/MaliVK13Patcher
 ```
 
 ### APK
