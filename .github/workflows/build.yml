@@ -123,9 +123,14 @@ jobs:
           ./gradlew --no-daemon assembleRelease
       - name: Rename APK
         run: |
+          set -eux
           mkdir -p out
-          cp apk/app/build/outputs/apk/release/app-release-unsigned.apk \
-             out/MaliVK13Patcher.apk
+          # AGP may output app-release.apk or app-release-unsigned.apk depending
+          # on signing config; pick whichever exists.
+          ls -la apk/app/build/outputs/apk/release/ || true
+          src=$(find apk/app/build/outputs/apk/release/ -maxdepth 1 -name 'app-release*.apk' | head -n1)
+          test -n "$src"
+          cp "$src" out/MaliVK13Patcher.apk
       - uses: actions/upload-artifact@v4
         with:
           name: MaliVK13Patcher-android
