@@ -479,6 +479,25 @@ def merge_build_prop(build_prop: Path, props_to_set: list[tuple[str, str]], log:
 # Top-level entrypoint
 
 
+@dataclass
+class PackOptions:
+    """User-tunable pack settings, mirroring MIO-KITCHEN's Pack dialog.
+
+    Defaults reproduce the patcher's previous behavior (lz4hc level 9, no
+    fixed timestamp). Setting any field to ``None`` means "use the tool's
+    default".
+    """
+
+    erofs_compression: str = "lz4hc"   # lz4 | lz4hc | lzma | deflate | zstd
+    erofs_level: Optional[int] = 9     # None = use mkfs.erofs default
+    timestamp: Optional[int] = None    # fixed UTC for all files; None = mkfs default
+
+    def erofs_compress_arg(self) -> str:
+        if self.erofs_level is None:
+            return self.erofs_compression
+        return f"{self.erofs_compression},{self.erofs_level}"
+
+
 def patch_image(
     input_image: Path,
     output_image: Path,
@@ -486,8 +505,11 @@ def patch_image(
     log: LOG = print,
     keep_workdir: bool = False,
     workdir: Optional[Path] = None,
+    pack: Optional["PackOptions"] = None,
 ) -> dict:
     """Patch a stock vendor.img and emit `output_image`. Returns metadata dict."""
+    if pack is None:
+        pack = PackOptions()
     input_image = Path(input_image).resolve()
     output_image = Path(output_image).resolve()
     if input_image == output_image:
@@ -617,9 +639,11 @@ def patch_image(
         if info.fs == "erofs":
             mkfs_erofs(
                 vendor_root, out_raw, log,
+                compress=pack.erofs_compress_arg(),
                 fs_config=fs_config,
                 file_contexts=file_contexts,
                 fs_uuid=fs_uuid,
+                timestamp=pack.timestamp,
             )
         else:
             mkfs_ext4(

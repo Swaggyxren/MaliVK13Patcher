@@ -49,18 +49,23 @@ jobs:
 
       - name: Verify patched image roundtrips
         run: |
+          set -eux
           mkdir -p verify
           ./bin/Linux/x86_64/extract.erofs -i fake_vendor.patched.img -x -f -s -o verify
           ls -la verify
-          # libGLES_mali.so should now be the 42 MB r38p1 build
-          test -s verify/fake_vendor.patched/lib64/egl/libGLES_mali.so
-          actual=$(stat -c %s verify/fake_vendor.patched/lib64/egl/libGLES_mali.so)
+          # extract.erofs derives the unpacked dir name from the image basename,
+          # which can vary slightly across versions. Locate libGLES_mali.so by glob.
+          libpath=$(find verify -path '*/lib64/egl/libGLES_mali.so' | head -n1)
+          test -n "$libpath"
+          actual=$(stat -c %s "$libpath")
           if [ "$actual" -ne 42397200 ]; then
             echo "Expected libGLES_mali.so size 42397200, got $actual" >&2
             exit 1
           fi
-          # build.prop should have new prop appended
-          grep -q ro.opengles.version=196610 verify/fake_vendor.patched/build.prop
+          buildprop=$(find verify -name build.prop | head -n1)
+          test -n "$buildprop"
+          # The Mali system.prop bumps ro.opengles.version up to 196610 (3.2)
+          grep -q '^ro.opengles.version=196610' "$buildprop"
 
   # -------------------------------------------------------------------------
   # Lint the Python with ruff (style + obvious bugs).
@@ -99,6 +104,34 @@ jobs:
           files: dist/MaliVK13Patcher.exe
 
   # -------------------------------------------------------------------------
+  # Build the Linux ELF with PyInstaller and upload as a workflow artifact.
+  # Same Tkinter GUI as the Windows EXE; bundles the Linux x86_64 toolchain.
+  # -------------------------------------------------------------------------
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tkinter
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq python3-tk
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r windows/requirements.txt
+      - name: Make bundled Linux toolchain executable
+        run: chmod +x bin/Linux/x86_64/*
+      - run: pyinstaller linux/MaliVK13Patcher.spec --noconfirm
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MaliVK13Patcher-linux
+          path: dist/MaliVK13Patcher
+          if-no-files-found: error
+      - name: Attach to release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/MaliVK13Patcher
+
+  # -------------------------------------------------------------------------
   # Build the APK with Gradle and upload as a workflow artifact.
   # -------------------------------------------------------------------------
   build-apk:
@@ -118,9 +151,14 @@ jobs:
           ./gradlew --no-daemon assembleRelease
       - name: Rename APK
         run: |
+          set -eux
           mkdir -p out
-          cp apk/app/build/outputs/apk/release/app-release-unsigned.apk \
-             out/MaliVK13Patcher.apk
+          # AGP may output app-release.apk or app-release-unsigned.apk depending
+          # on signing config; pick whichever exists.
+          ls -la apk/app/build/outputs/apk/release/ || true
+          src=$(find apk/app/build/outputs/apk/release/ -maxdepth 1 -name 'app-release*.apk' | head -n1)
+          test -n "$src"
+          cp "$src" out/MaliVK13Patcher.apk
       - uses: actions/upload-artifact@v4
         with:
           name: MaliVK13Patcher-android

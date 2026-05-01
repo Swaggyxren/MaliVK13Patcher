@@ -5,18 +5,19 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
+    id("org.jetbrains.kotlin.plugin.serialization")
 }
 
 android {
     namespace = "io.github.swaggyxren.malivk13patcher"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "io.github.swaggyxren.malivk13patcher"
         minSdk = 26
-        targetSdk = 34
-        versionCode = 1
-        versionName = "0.1.0"
+        targetSdk = 35
+        versionCode = 2
+        versionName = "1.0.1"
         ndk {
             abiFilters.add("arm64-v8a")
         }
@@ -51,6 +52,17 @@ android {
                 "src/main/assets",
                 rootProject.layout.projectDirectory.dir("../payload").asFile,
             )
+        }
+    }
+
+    signingConfigs {
+        // Explicitly enable v1 + v2 + v3 signing schemes on the debug keystore
+        // so the produced APK installs cleanly on Android 14/15/16, which all
+        // require a v2 (or v3) signature.
+        getByName("debug") {
+            enableV1Signing = true
+            enableV2Signing = true
+            enableV3Signing = true
         }
     }
 
@@ -95,6 +107,10 @@ dependencies {
 // -----------------------------------------------------------------------------
 val nativeBinariesSrc =
     rootProject.layout.projectDirectory.dir("../bin/Android/aarch64").asFile
+// jniLibs.srcDirs points at the parent directory that *contains* per-ABI
+// folders (e.g. arm64-v8a/), so the Copy task writes into a child folder.
+val jniLibsRoot =
+    layout.buildDirectory.dir("generated/jniLibs")
 val nativeBinariesDst =
     layout.buildDirectory.dir("generated/jniLibs/arm64-v8a")
 
@@ -119,7 +135,7 @@ val prepareNativeBinaries =
     }
 
 android.sourceSets.getByName("main").jniLibs.srcDirs(
-    nativeBinariesDst,
+    jniLibsRoot,
 )
 
 tasks.withType<MergeSourceSetFolders>().configureEach {

@@ -2,7 +2,7 @@
   "_comment": "Manifest describing what the patcher overlays onto a stock vendor.img. The patcher copies every file under payload/vendor/ into the unpacked vendor tree (creating dirs as needed) and merges the props in system.prop into vendor/build.prop.",
   "name": "Mali 38p1 Vulkan 1.3 (Mali-G57 MC2)",
   "version": "1",
-  "source_module": "Mali_38p1_VK_1-3 (dobrogrind) + MillenniumOSS mt6789-common 28be9e3",
+  "source_module": "Mali_38p1_VK_1-3 (dobrogrind)",
   "compatible": {
     "ro.hardware.egl": "mali",
     "gpu_hint": "Mali-G57 MC2",
