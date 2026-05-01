@@ -35,20 +35,22 @@ internal object SparseImage {
                     "Not a sparse image: magic=0x${java.lang.Integer.toHexString(magic)}",
                 )
             }
+            // All file-level uint32 fields per AOSP `sparse_format.h`. Read as
+            // signed and mask to Long so values >= 2^31 don't go negative.
             val major = hdr.short.toInt() and 0xFFFF
             val minor = hdr.short.toInt() and 0xFFFF
             val fileHdrSz = hdr.short.toInt() and 0xFFFF
             val chunkHdrSz = hdr.short.toInt() and 0xFFFF
-            val blkSz = hdr.int
-            val totalBlks = hdr.int
-            val totalChunks = hdr.int
+            val blkSz = hdr.int.toLong() and 0xFFFFFFFFL
+            val totalBlks = hdr.int.toLong() and 0xFFFFFFFFL
+            val totalChunks = hdr.int.toLong() and 0xFFFFFFFFL
             // val checksum = hdr.int  // intentionally unused
 
-            if (fileHdrSz > 28) skipFully(ri, fileHdrSz - 28)
+            if (fileHdrSz > 28) skipFully(ri, (fileHdrSz - 28).toLong())
             log("  sparse v$major.$minor blkSz=$blkSz totalBlks=$totalBlks chunks=$totalChunks")
 
             RandomAccessFile(output, "rw").use { ro ->
-                ro.setLength(totalBlks.toLong() * blkSz.toLong())
+                ro.setLength(totalBlks * blkSz)
                 ro.seek(0)
 
                 val chunkHdr = ByteArray(12)
@@ -56,22 +58,24 @@ internal object SparseImage {
                 val fillVal = ByteArray(4)
 
                 var blocksWritten = 0L
-                for (i in 0 until totalChunks) {
+                var i = 0L
+                while (i < totalChunks) {
                     readFully(ri, chunkHdr)
                     val ch = ByteBuffer.wrap(chunkHdr).order(ByteOrder.LITTLE_ENDIAN)
                     val type = ch.short.toInt() and 0xFFFF
                     /* reserved */ ch.short
-                    val chunkBlks = ch.int
-                    val totalSz = ch.int
+                    // chunk_sz and total_sz are uint32 in the spec; widen to Long.
+                    val chunkBlks = ch.int.toLong() and 0xFFFFFFFFL
+                    val totalSz = ch.int.toLong() and 0xFFFFFFFFL
 
-                    if (chunkHdrSz > 12) skipFully(ri, chunkHdrSz - 12)
-                    val payloadSz = totalSz - chunkHdrSz
-                    val outBytes = chunkBlks.toLong() * blkSz.toLong()
+                    if (chunkHdrSz > 12) skipFully(ri, (chunkHdrSz - 12).toLong())
+                    val payloadSz = totalSz - chunkHdrSz.toLong()
+                    val outBytes = chunkBlks * blkSz
 
                     when (type) {
                         CHUNK_TYPE_RAW -> {
-                            var remaining = payloadSz.toLong()
-                            while (remaining > 0) {
+                            var remaining = payloadSz
+                            while (remaining > 0L) {
                                 val n = minOf(remaining, rawBuf.size.toLong()).toInt()
                                 readFully(ri, rawBuf, n)
                                 ro.write(rawBuf, 0, n)
@@ -81,10 +85,11 @@ internal object SparseImage {
                         CHUNK_TYPE_FILL -> {
                             readFully(ri, fillVal)
                             // Build a one-block pattern, then write it `chunkBlks` times.
-                            val pattern = ByteArray(blkSz)
-                            for (j in 0 until blkSz) pattern[j] = fillVal[j and 3]
+                            val patternSz = blkSz.toInt()
+                            val pattern = ByteArray(patternSz)
+                            for (j in 0 until patternSz) pattern[j] = fillVal[j and 3]
                             var remaining = outBytes
-                            while (remaining > 0) {
+                            while (remaining > 0L) {
                                 val n = minOf(remaining, pattern.size.toLong()).toInt()
                                 ro.write(pattern, 0, n)
                                 remaining -= n
@@ -103,9 +108,10 @@ internal object SparseImage {
                         )
                     }
                     blocksWritten += chunkBlks
+                    i++
                 }
                 log("  desparsed $blocksWritten blocks " +
-                    "(${blocksWritten * blkSz.toLong()} bytes)")
+                    "(${blocksWritten * blkSz} bytes)")
             }
         }
     }
@@ -119,8 +125,8 @@ internal object SparseImage {
         }
     }
 
-    private fun skipFully(src: java.io.InputStream, n: Int) {
-        var remaining = n.toLong()
+    private fun skipFully(src: java.io.InputStream, n: Long) {
+        var remaining = n
         while (remaining > 0) {
             val skipped = src.skip(remaining)
             if (skipped <= 0) {
