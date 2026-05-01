@@ -28,6 +28,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -37,6 +40,10 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -60,6 +67,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -162,6 +171,7 @@ private fun PatcherScreen(
     var compressionLevel by remember { mutableStateOf(9f) }   // 0..9; 0 = mkfs default
     var utcInput by remember { mutableStateOf("") }            // blank = original timestamp
     var compressionMenuOpen by remember { mutableStateOf(false) }
+    var settingsOpen by remember { mutableStateOf(false) }
 
     val pickInputLauncher =
         androidx.activity.compose.rememberLauncherForActivityResult(
@@ -206,8 +216,12 @@ private fun PatcherScreen(
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.weight(1f),
             )
-            TextButton(onClick = onToggleTheme) {
-                Text(if (isDark) "Light" else "Dark")
+            IconButton(onClick = { settingsOpen = true }) {
+                Icon(
+                    imageVector = Icons.Filled.Settings,
+                    contentDescription = "Settings",
+                    tint = MaterialTheme.colorScheme.onBackground,
+                )
             }
         }
         Text(
@@ -448,6 +462,19 @@ private fun PatcherScreen(
                 .fillMaxWidth()
                 .weight(1f),
         )
+
+        // --- Footer credits row --------------------------------------
+        CreditsRow()
+    }
+
+    if (settingsOpen) {
+        SettingsDialog(
+            isDark = isDark,
+            onSelectTheme = { dark ->
+                if (dark != isDark) onToggleTheme()
+            },
+            onDismiss = { settingsOpen = false },
+        )
     }
 
     LaunchedEffect(Unit) {
@@ -499,6 +526,129 @@ private fun FileRow(
             }
         }
     }
+}
+
+private const val REPO_URL = "https://github.com/Swaggyxren/MaliVK13Patcher"
+private const val CREDITS_URL = "https://github.com/Swaggyxren/MaliVK13Patcher#credits--licenses"
+private const val GITHUB_USER = "Swaggyxren"
+
+@Composable
+private fun CreditsRow() {
+    val uriHandler = LocalUriHandler.current
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        TextButton(
+            onClick = { uriHandler.openUri(CREDITS_URL) },
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                horizontal = 8.dp, vertical = 4.dp,
+            ),
+        ) {
+            Text(
+                text = "Credits",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        TextButton(
+            onClick = { uriHandler.openUri(REPO_URL) },
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                horizontal = 8.dp, vertical = 4.dp,
+            ),
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_github),
+                contentDescription = "GitHub",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.height(16.dp),
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = "@$GITHUB_USER",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SettingsDialog(
+    isDark: Boolean,
+    onSelectTheme: (Boolean) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Settings") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text(
+                    text = "Theme",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    FilterChip(
+                        selected = isDark,
+                        onClick = { onSelectTheme(true) },
+                        label = { Text("Dark") },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MaterialTheme.colorScheme.primary,
+                            selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                        ),
+                    )
+                    FilterChip(
+                        selected = !isDark,
+                        onClick = { onSelectTheme(false) },
+                        label = { Text("Light") },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MaterialTheme.colorScheme.primary,
+                            selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                        ),
+                    )
+                }
+
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    shape = RoundedCornerShape(10.dp),
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Text(
+                            text = "⚠ Disclaimer",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        Text(
+                            text = "This APK and the entire repository are " +
+                                "AI-generated. Use at your own risk. The author " +
+                                "(@$GITHUB_USER) is not responsible for any " +
+                                "damage, data loss, brick, or other harm caused " +
+                                "by use of this software. Patching system " +
+                                "partitions is inherently risky — always have a " +
+                                "backup of your stock vendor.img and a working " +
+                                "recovery before flashing.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Close") }
+        },
+    )
 }
 
 /**
