@@ -31,6 +31,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -203,6 +204,33 @@ private fun PatcherScreen(
             } catch (_: SecurityException) { /* ignore */ }
             outputUri = uri
             outputName = displayName(context, uri)
+        }
+
+    // SAF CreateDocument launcher for "Save log as .txt". Defined at the
+    // PatcherScreen level (not inside LogPanel) so it can directly read the
+    // logLines snapshot list when the user picks a destination.
+    val saveLogLauncher =
+        androidx.activity.compose.rememberLauncherForActivityResult(
+            ActivityResultContracts.CreateDocument("text/plain"),
+        ) { uri: Uri? ->
+            if (uri == null) return@rememberLauncherForActivityResult
+            try {
+                context.contentResolver.openOutputStream(uri)?.use { os ->
+                    os.write(logLines.joinToString("\n").toByteArray(Charsets.UTF_8))
+                    if (logLines.isNotEmpty()) os.write("\n".toByteArray(Charsets.UTF_8))
+                }
+                android.widget.Toast.makeText(
+                    context,
+                    "Log saved (${logLines.size} lines)",
+                    android.widget.Toast.LENGTH_SHORT,
+                ).show()
+            } catch (e: Exception) {
+                android.widget.Toast.makeText(
+                    context,
+                    "Save failed: ${e.message}",
+                    android.widget.Toast.LENGTH_LONG,
+                ).show()
+            }
         }
 
     Column(
@@ -466,6 +494,12 @@ private fun PatcherScreen(
         // --- Log (only this scrolls; takes remaining vertical space) -
         LogPanel(
             logLines = logLines,
+            onSaveLog = {
+                val ts = java.text.SimpleDateFormat(
+                    "yyyyMMdd-HHmmss", java.util.Locale.US,
+                ).format(java.util.Date())
+                saveLogLauncher.launch("malivk13-log-$ts.txt")
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f),
@@ -667,6 +701,7 @@ private fun SettingsDialog(
 @Composable
 private fun LogPanel(
     logLines: SnapshotStateList<String>,
+    onSaveLog: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
@@ -699,6 +734,15 @@ private fun LogPanel(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.weight(1f))
+                IconButton(
+                    enabled = logLines.isNotEmpty(),
+                    onClick = onSaveLog,
+                ) {
+                    Icon(
+                        Icons.Filled.Save,
+                        contentDescription = "Save logs as .txt",
+                    )
+                }
                 IconButton(
                     enabled = logLines.isNotEmpty(),
                     onClick = {
