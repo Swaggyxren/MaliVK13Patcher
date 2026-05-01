@@ -138,6 +138,10 @@ class Patcher(private val context: Context) {
             log("[3/6] overlaying Mali payload")
             val overlaid = overlayFiles(vendorRoot, manifest.vendorRelativeFiles, log)
             if (fsConfig != null) ensureFsConfigEntries(fsConfig, overlaid, log)
+            // mkfs.erofs (MIO-KITCHEN build) segfaults on blank/comment lines
+            // in fs_config and file_contexts. Always sanitize before repack.
+            fsConfig?.let { sanitizeConfigFile(it, log) }
+            fileContexts?.let { sanitizeConfigFile(it, log) }
 
             log("[4/6] merging system.prop into vendor build.prop")
             val systemPropFile = File(payloadDir, manifest.systemPropSource.removePrefix("payload/"))
@@ -443,6 +447,24 @@ class Patcher(private val context: Context) {
             .toList()
         fsConfig.writeText((keptLines + additions).joinToString("\n") + "\n")
         log("  added ${additions.size} fs_config entries for overlay")
+    }
+
+    /**
+     * Drop blank lines, comment lines, and trailing whitespace from a config
+     * file. Required because the bundled `mkfs.erofs` from MIO-KITCHEN crashes
+     * with SIGSEGV when its parser hits an ill-formed line.
+     */
+    private fun sanitizeConfigFile(file: File, log: (String) -> Unit) {
+        val before = file.readText()
+        val cleaned = before.lineSequence()
+            .map { it.trimEnd() }
+            .filter { it.isNotEmpty() && !it.trimStart().startsWith("#") }
+            .toList()
+        val after = cleaned.joinToString("\n") + "\n"
+        if (after != before) {
+            file.writeText(after)
+            log("  sanitized ${file.name} (${before.length} -> ${after.length} bytes)")
+        }
     }
 
     // -----------------------------------------------------------------
