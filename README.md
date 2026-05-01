@@ -96,8 +96,8 @@ The APK does **not** require root — it only needs read access to your input fi
 
 ### Limitations of the APK build
 
-- **Sparse images aren't supported on Android** in this build (we don't bundle an arm64 `simg2img`). If your stock `vendor.img` is sparse, run `simg2img` on a PC first or use the Windows EXE.
-- **`ext4` vendors aren't supported on Android** either (no `debugfs` arm64 binary). Same workaround. Most modern mt6789 devices ship EROFS, so this is rarely a problem.
+- **Sparse images are supported** (decoded in pure Kotlin on input; re-encoded via the bundled arm64 `img2simg` on output). Output format auto-matches the input — sparse-in → sparse-out, raw-in → raw-out.
+- **`ext4` vendors aren't supported on Android** (no arm64 `debugfs` / `mke2fs` / `e2fsdroid` bundled). If your `vendor.img` is ext4, use the Windows EXE or Linux ELF instead. Most modern mt6789 / MT6855 devices ship EROFS, so this is rarely a problem.
 
 ## Compatibility
 

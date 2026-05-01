@@ -90,23 +90,33 @@ class Patcher(private val context: Context) {
             log("  sparse=${info.isSparse} fs=${info.fs}")
 
             var rawImage = stagedInput
-            if (info.isSparse) {
-                throw PatchException(
-                    "Sparse vendor.img is not supported on Android (no simg2img " +
-                        "on arm64 in this build). Convert to raw on PC first " +
-                        "(simg2img vendor.img vendor.raw.img) and pick the raw image.",
-                )
-            }
-            if (info.fs != "erofs" && info.fs != "ext4") {
-                throw PatchException(
-                    "Could not detect vendor filesystem (need EROFS or ext4 magic).",
-                )
-            }
+            val effectiveFs: String =
+                if (info.isSparse) {
+                    val rawIn = File(workdir, "vendor.raw.img")
+                    log("  sparse-in -> desparsing to ${rawIn.name}")
+                    SparseImage.desparse(stagedInput, rawIn, log)
+                    rawImage = rawIn
+                    val rawInfo = detect(rawImage)
+                    if (rawInfo.fs != "erofs" && rawInfo.fs != "ext4") {
+                        throw PatchException(
+                            "After desparse, could not detect vendor filesystem (need EROFS or ext4 magic).",
+                        )
+                    }
+                    log("  desparsed fs=${rawInfo.fs}")
+                    rawInfo.fs
+                } else {
+                    if (info.fs != "erofs" && info.fs != "ext4") {
+                        throw PatchException(
+                            "Could not detect vendor filesystem (need EROFS or ext4 magic).",
+                        )
+                    }
+                    info.fs
+                }
 
             val unpackDir = File(workdir, "vendor_unpacked")
             unpackDir.mkdirs()
-            log("[2/6] unpacking ${info.fs} into ${unpackDir.absolutePath}")
-            when (info.fs) {
+            log("[2/6] unpacking $effectiveFs into ${unpackDir.absolutePath}")
+            when (effectiveFs) {
                 "erofs" -> runTool(
                     "libextract_erofs.so",
                     listOf("-i", rawImage.absolutePath, "-x", "-f", "-s", "-o", unpackDir.absolutePath),
@@ -134,10 +144,10 @@ class Patcher(private val context: Context) {
             val buildProp = File(vendorRoot, manifest.buildPropPath)
             mergeBuildProp(buildProp, parseProps(systemPropFile.readText()), log)
 
-            log("[5/6] repacking ${info.fs}")
+            log("[5/6] repacking $effectiveFs")
             val outRaw = File(workdir, "vendor_patched.raw.img")
             val uuid = UUID.randomUUID().toString()
-            when (info.fs) {
+            when (effectiveFs) {
                 "erofs" -> runTool(
                     "libmkfs_erofs.so",
                     buildList {
@@ -156,10 +166,23 @@ class Patcher(private val context: Context) {
             }
 
             log("[6/6] writing output to user-chosen location")
-            copyFileToUri(outRaw, output)
-            val outSize = outRaw.length()
+            val finalOut: File =
+                if (info.isSparse) {
+                    val outSparse = File(workdir, "vendor_patched.sparse.img")
+                    log("  sparse-out -> re-sparsing ${outRaw.name} -> ${outSparse.name}")
+                    runTool(
+                        "libimg2simg.so",
+                        listOf(outRaw.absolutePath, outSparse.absolutePath, "4096"),
+                        log,
+                    )
+                    outSparse
+                } else {
+                    outRaw
+                }
+            copyFileToUri(finalOut, output)
+            val outSize = finalOut.length()
             return PatchResult(
-                inputFs = info.fs,
+                inputFs = effectiveFs,
                 inputWasSparse = info.isSparse,
                 inputSize = stagedInput.length(),
                 outputSize = outSize,
