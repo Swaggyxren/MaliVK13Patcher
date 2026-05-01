@@ -15,7 +15,7 @@ The output is **another `vendor.img`** — this tool does *not* flash anything. 
 
 The patch is the **dobrogrind `Mali_38p1_VK_1-3` Magisk module**, applied directly into a vendor image (instead of as a Magisk overlay) so it survives reboots without root. The patch:
 
-1. **Replaces** these Mali userspace blobs with the r38p1 build (the same blobs that MillenniumOSS uses in [their mt6789-common device tree](https://github.com/MillenniumOSS/android_device_tecno_mt6789-common/commit/28be9e37ef73b8bb4c0341eb0a7095429b626d84)). The full overlay tree shipped in `payload/vendor/` and dropped into the unpacked vendor partition:
+1. **Replaces** these Mali userspace blobs with the r38p1 build. The full overlay tree shipped in `payload/vendor/` and dropped into the unpacked vendor partition:
 
    ```text
    vendor/
@@ -183,7 +183,7 @@ The Windows EXE drives this with Python (`core/patcher.py`); the APK does it wit
 
 This project bundles work from several upstream projects. **All credit for the actual image-tooling goes to them.**
 
-- **Mali r38p1 blobs**: from the Motorola XT2513-1 stock firmware as identified by [Shirayuki39 in MillenniumOSS](https://github.com/MillenniumOSS/android_device_tecno_mt6789-common/commit/28be9e37ef73b8bb4c0341eb0a7095429b626d84). Magisk module repackaging by **dobrogrind**.
+- **Mali r38p1 blobs**: from the **dobrogrind** `Mali_38p1_VK_1-3` Magisk module.
 - **`extract.erofs`, `mkfs.erofs`**: from [sekaiacg/erofs-utils](https://github.com/sekaiacg/erofs-utils) (GPL-2.0).
 - **`simg2img`, `img2simg`, `mke2fs`, `e2fsdroid`**: from [nmeum/android-tools](https://github.com/nmeum/android-tools) and upstream e2fsprogs (GPL-2.0 / Apache-2.0).
 - **Cross-platform binaries** vendored from [ColdWindScholar/MIO-KITCHEN-SOURCE](https://github.com/ColdWindScholar/MIO-KITCHEN-SOURCE) (AGPL-3.0).
