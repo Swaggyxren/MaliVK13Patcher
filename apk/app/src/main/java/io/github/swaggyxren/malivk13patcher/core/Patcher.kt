@@ -49,8 +49,14 @@ class Patcher(private val context: Context) {
      */
     data class PackOptions(
         val erofsCompression: String = "lz4hc",
-        /** null means "use mkfs.erofs default" (no level suffix). */
-        val erofsLevel: Int? = 9,
+        /**
+         * Level appended to the `-z` flag. `null` skips the suffix entirely
+         * (lets mkfs.erofs pick its own default). `0` is what MIO-KITCHEN GUI
+         * passes by default and what every device tested so far accepts at
+         * boot; higher levels (notably 9) produced bytes that the lz4hc
+         * decoder on Tecno LH8n / mt6833 wouldn't mount, so we default to 0.
+         */
+        val erofsLevel: Int? = 0,
         /** null means "use mkfs.erofs default" (no -T flag). */
         val timestamp: Long? = null,
     ) {

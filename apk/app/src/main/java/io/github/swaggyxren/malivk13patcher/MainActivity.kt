@@ -172,7 +172,7 @@ private fun PatcherScreen(
     // Pack options
     var advancedOpen by remember { mutableStateOf(false) }
     var compressionAlgo by remember { mutableStateOf("lz4hc") }
-    var compressionLevel by remember { mutableStateOf(9f) }   // 0..9; 0 = mkfs default
+    var compressionLevel by remember { mutableStateOf(0f) }   // 0..9; 0 = MIO-KITCHEN default (boot-safe)
     var utcInput by remember { mutableStateOf("") }            // blank = original timestamp
     var compressionMenuOpen by remember { mutableStateOf(false) }
     var settingsOpen by remember { mutableStateOf(false) }
@@ -359,7 +359,7 @@ private fun PatcherScreen(
                             steps = 8,
                         )
                         Text(
-                            text = "0 = mkfs.erofs default (matches MIO-KITCHEN), 9 = max compression",
+                            text = "0 = mkfs.erofs default (matches MIO-KITCHEN, recommended). Higher levels can produce EROFS bytes some lz4hc decoders refuse to mount at boot.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -402,7 +402,11 @@ private fun PatcherScreen(
                 val ts = utcInput.trim().takeIf { it.isNotEmpty() }?.toLongOrNull()
                 val pack = Patcher.PackOptions(
                     erofsCompression = compressionAlgo,
-                    erofsLevel = compressionLevel.toInt().let { if (it == 0) null else it },
+                    // Always pass an explicit level (including ,0) so the
+                    // -z argument matches MIO-KITCHEN GUI exactly. Skipping
+                    // the suffix entirely is *not* equivalent to ,0 in some
+                    // mkfs.erofs builds.
+                    erofsLevel = compressionLevel.toInt(),
                     timestamp = ts,
                 )
                 busy = true
