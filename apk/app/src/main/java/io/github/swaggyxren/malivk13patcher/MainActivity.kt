@@ -24,9 +24,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -49,11 +50,12 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -65,7 +67,6 @@ import androidx.lifecycle.lifecycleScope
 import io.github.swaggyxren.malivk13patcher.core.PatchResult
 import io.github.swaggyxren.malivk13patcher.core.Patcher
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -151,8 +152,9 @@ private fun PatcherScreen(
     var inputName by remember { mutableStateOf("") }
     var outputName by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
-    val logState = remember { MutableStateFlow("") }
-    val log by logState.collectAsState()
+    // SnapshotStateList: O(1) append, only the LogPanel that observes it
+    // recomposes when new lines arrive (not the whole screen).
+    val logLines = remember { mutableStateListOf<String>() }
 
     // Pack options
     var advancedOpen by remember { mutableStateOf(false) }
@@ -193,8 +195,7 @@ private fun PatcherScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .padding(horizontal = 20.dp, vertical = 18.dp)
-            .verticalScroll(rememberScrollState()),
+            .padding(horizontal = 20.dp, vertical = 18.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         // --- Header ---------------------------------------------------
@@ -376,7 +377,8 @@ private fun PatcherScreen(
                 val inUri = inputUri
                 val outUri = outputUri
                 if (inUri == null || outUri == null) {
-                    logState.value = "Pick both input and output before patching."
+                    logLines.clear()
+                    logLines.add("Pick both input and output before patching.")
                     return@Button
                 }
                 val ts = utcInput.trim().takeIf { it.isNotEmpty() }?.toLongOrNull()
@@ -386,23 +388,26 @@ private fun PatcherScreen(
                     timestamp = ts,
                 )
                 busy = true
-                logState.value = ""
+                logLines.clear()
                 activity.lifecycleScope.launch {
                     val result = withContext(Dispatchers.IO) {
                         runCatching {
                             Patcher(context).run(inUri, outUri, pack) { line ->
-                                logState.value = logState.value + line + "\n"
+                                logLines.add(line)
                             }
                         }
                     }
                     busy = false
                     result.onSuccess { meta: PatchResult ->
-                        logState.value = logState.value +
-                            "\nDONE — wrote ${meta.outputSize} bytes to output URI.\n" +
-                            "Now flash with fastboot. Bootloader must be unlocked and " +
-                            "vbmeta verity disabled. See README."
+                        logLines.add("")
+                        logLines.add("DONE — wrote ${meta.outputSize} bytes to output URI.")
+                        logLines.add(
+                            "Now flash with fastboot. Bootloader must be unlocked " +
+                            "and vbmeta verity disabled. See README."
+                        )
                     }.onFailure { e ->
-                        logState.value = logState.value + "\nFAILED: ${e.message}"
+                        logLines.add("")
+                        logLines.add("FAILED: ${e.message}")
                     }
                 }
             },
@@ -436,24 +441,13 @@ private fun PatcherScreen(
             }
         }
 
-        // --- Log ------------------------------------------------------
-        Card(
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            shape = RoundedCornerShape(12.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text(
-                text = if (log.isEmpty()) "Logs will appear here." else log,
-                fontFamily = FontFamily.Monospace,
-                style = MaterialTheme.typography.bodySmall,
-                color = if (log.isEmpty())
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                else
-                    MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(12.dp),
-            )
-        }
+        // --- Log (only this scrolls; takes remaining vertical space) -
+        LogPanel(
+            logLines = logLines,
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+        )
     }
 
     LaunchedEffect(Unit) {
@@ -502,6 +496,58 @@ private fun FileRow(
                 shape = RoundedCornerShape(10.dp),
             ) {
                 Text(buttonText)
+            }
+        }
+    }
+}
+
+/**
+ * Scrollable log panel. Reads `logLines` directly so only this composable
+ * re-runs when new lines arrive — the rest of the screen does not recompose.
+ * Auto-scrolls to the bottom as new lines stream in.
+ */
+@Composable
+private fun LogPanel(
+    logLines: SnapshotStateList<String>,
+    modifier: Modifier = Modifier,
+) {
+    val listState = rememberLazyListState()
+    LaunchedEffect(logLines.size) {
+        if (logLines.isNotEmpty()) {
+            // scrollToItem (no animation) is what we want for streaming logs:
+            // it always pins the latest line to the bottom without jank.
+            listState.scrollToItem(logLines.size - 1)
+        }
+    }
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        modifier = modifier,
+    ) {
+        if (logLines.isEmpty()) {
+            Text(
+                text = "Logs will appear here.",
+                fontFamily = FontFamily.Monospace,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(12.dp),
+            )
+        } else {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(12.dp),
+            ) {
+                items(logLines) { line ->
+                    Text(
+                        text = line,
+                        fontFamily = FontFamily.Monospace,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
             }
         }
     }
