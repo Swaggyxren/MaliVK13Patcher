@@ -49,8 +49,14 @@ class Patcher(private val context: Context) {
      */
     data class PackOptions(
         val erofsCompression: String = "lz4hc",
-        /** null means "use mkfs.erofs default" (no level suffix). */
-        val erofsLevel: Int? = 9,
+        /**
+         * Level appended to the `-z` flag. `null` skips the suffix entirely
+         * (lets mkfs.erofs pick its own default). `0` is what MIO-KITCHEN GUI
+         * passes by default and what every device tested so far accepts at
+         * boot; higher levels (notably 9) produced bytes that the lz4hc
+         * decoder on Tecno LH8n / mt6833 wouldn't mount, so we default to 0.
+         */
+        val erofsLevel: Int? = 0,
         /** null means "use mkfs.erofs default" (no -T flag). */
         val timestamp: Long? = null,
     ) {
@@ -90,23 +96,33 @@ class Patcher(private val context: Context) {
             log("  sparse=${info.isSparse} fs=${info.fs}")
 
             var rawImage = stagedInput
-            if (info.isSparse) {
-                throw PatchException(
-                    "Sparse vendor.img is not supported on Android (no simg2img " +
-                        "on arm64 in this build). Convert to raw on PC first " +
-                        "(simg2img vendor.img vendor.raw.img) and pick the raw image.",
-                )
-            }
-            if (info.fs != "erofs" && info.fs != "ext4") {
-                throw PatchException(
-                    "Could not detect vendor filesystem (need EROFS or ext4 magic).",
-                )
-            }
+            val effectiveFs: String =
+                if (info.isSparse) {
+                    val rawIn = File(workdir, "vendor.raw.img")
+                    log("  sparse-in -> desparsing to ${rawIn.name}")
+                    SparseImage.desparse(stagedInput, rawIn, log)
+                    rawImage = rawIn
+                    val rawInfo = detect(rawImage)
+                    if (rawInfo.fs != "erofs" && rawInfo.fs != "ext4") {
+                        throw PatchException(
+                            "After desparse, could not detect vendor filesystem (need EROFS or ext4 magic).",
+                        )
+                    }
+                    log("  desparsed fs=${rawInfo.fs}")
+                    rawInfo.fs
+                } else {
+                    if (info.fs != "erofs" && info.fs != "ext4") {
+                        throw PatchException(
+                            "Could not detect vendor filesystem (need EROFS or ext4 magic).",
+                        )
+                    }
+                    info.fs
+                }
 
             val unpackDir = File(workdir, "vendor_unpacked")
             unpackDir.mkdirs()
-            log("[2/6] unpacking ${info.fs} into ${unpackDir.absolutePath}")
-            when (info.fs) {
+            log("[2/6] unpacking $effectiveFs into ${unpackDir.absolutePath}")
+            when (effectiveFs) {
                 "erofs" -> runTool(
                     "libextract_erofs.so",
                     listOf("-i", rawImage.absolutePath, "-x", "-f", "-s", "-o", unpackDir.absolutePath),
@@ -128,16 +144,20 @@ class Patcher(private val context: Context) {
             log("[3/6] overlaying Mali payload")
             val overlaid = overlayFiles(vendorRoot, manifest.vendorRelativeFiles, log)
             if (fsConfig != null) ensureFsConfigEntries(fsConfig, overlaid, log)
+            // mkfs.erofs (MIO-KITCHEN build) segfaults on blank/comment lines
+            // in fs_config and file_contexts. Always sanitize before repack.
+            fsConfig?.let { sanitizeConfigFile(it, log) }
+            fileContexts?.let { sanitizeConfigFile(it, log) }
 
             log("[4/6] merging system.prop into vendor build.prop")
             val systemPropFile = File(payloadDir, manifest.systemPropSource.removePrefix("payload/"))
             val buildProp = File(vendorRoot, manifest.buildPropPath)
             mergeBuildProp(buildProp, parseProps(systemPropFile.readText()), log)
 
-            log("[5/6] repacking ${info.fs}")
+            log("[5/6] repacking $effectiveFs")
             val outRaw = File(workdir, "vendor_patched.raw.img")
             val uuid = UUID.randomUUID().toString()
-            when (info.fs) {
+            when (effectiveFs) {
                 "erofs" -> runTool(
                     "libmkfs_erofs.so",
                     buildList {
@@ -156,10 +176,23 @@ class Patcher(private val context: Context) {
             }
 
             log("[6/6] writing output to user-chosen location")
-            copyFileToUri(outRaw, output)
-            val outSize = outRaw.length()
+            val finalOut: File =
+                if (info.isSparse) {
+                    val outSparse = File(workdir, "vendor_patched.sparse.img")
+                    log("  sparse-out -> re-sparsing ${outRaw.name} -> ${outSparse.name}")
+                    runTool(
+                        "libimg2simg.so",
+                        listOf(outRaw.absolutePath, outSparse.absolutePath, "4096"),
+                        log,
+                    )
+                    outSparse
+                } else {
+                    outRaw
+                }
+            copyFileToUri(finalOut, output)
+            val outSize = finalOut.length()
             return PatchResult(
-                inputFs = info.fs,
+                inputFs = effectiveFs,
                 inputWasSparse = info.isSparse,
                 inputSize = stagedInput.length(),
                 outputSize = outSize,
@@ -420,6 +453,24 @@ class Patcher(private val context: Context) {
             .toList()
         fsConfig.writeText((keptLines + additions).joinToString("\n") + "\n")
         log("  added ${additions.size} fs_config entries for overlay")
+    }
+
+    /**
+     * Drop blank lines, comment lines, and trailing whitespace from a config
+     * file. Required because the bundled `mkfs.erofs` from MIO-KITCHEN crashes
+     * with SIGSEGV when its parser hits an ill-formed line.
+     */
+    private fun sanitizeConfigFile(file: File, log: (String) -> Unit) {
+        val before = file.readText()
+        val cleaned = before.lineSequence()
+            .map { it.trimEnd() }
+            .filter { it.isNotEmpty() && !it.trimStart().startsWith("#") }
+            .toList()
+        val after = cleaned.joinToString("\n") + "\n"
+        if (after != before) {
+            file.writeText(after)
+            log("  sanitized ${file.name} (${before.length} -> ${after.length} bytes)")
+        }
     }
 
     // -----------------------------------------------------------------

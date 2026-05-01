@@ -28,7 +28,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -66,8 +69,10 @@ import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -168,7 +173,7 @@ private fun PatcherScreen(
     // Pack options
     var advancedOpen by remember { mutableStateOf(false) }
     var compressionAlgo by remember { mutableStateOf("lz4hc") }
-    var compressionLevel by remember { mutableStateOf(9f) }   // 0..9; 0 = mkfs default
+    var compressionLevel by remember { mutableStateOf(0f) }   // 0..9; 0 = MIO-KITCHEN default (boot-safe)
     var utcInput by remember { mutableStateOf("") }            // blank = original timestamp
     var compressionMenuOpen by remember { mutableStateOf(false) }
     var settingsOpen by remember { mutableStateOf(false) }
@@ -199,6 +204,33 @@ private fun PatcherScreen(
             } catch (_: SecurityException) { /* ignore */ }
             outputUri = uri
             outputName = displayName(context, uri)
+        }
+
+    // SAF CreateDocument launcher for "Save log as .txt". Defined at the
+    // PatcherScreen level (not inside LogPanel) so it can directly read the
+    // logLines snapshot list when the user picks a destination.
+    val saveLogLauncher =
+        androidx.activity.compose.rememberLauncherForActivityResult(
+            ActivityResultContracts.CreateDocument("text/plain"),
+        ) { uri: Uri? ->
+            if (uri == null) return@rememberLauncherForActivityResult
+            try {
+                context.contentResolver.openOutputStream(uri)?.use { os ->
+                    os.write(logLines.joinToString("\n").toByteArray(Charsets.UTF_8))
+                    if (logLines.isNotEmpty()) os.write("\n".toByteArray(Charsets.UTF_8))
+                }
+                android.widget.Toast.makeText(
+                    context,
+                    "Log saved (${logLines.size} lines)",
+                    android.widget.Toast.LENGTH_SHORT,
+                ).show()
+            } catch (e: Exception) {
+                android.widget.Toast.makeText(
+                    context,
+                    "Save failed: ${e.message}",
+                    android.widget.Toast.LENGTH_LONG,
+                ).show()
+            }
         }
 
     Column(
@@ -355,7 +387,7 @@ private fun PatcherScreen(
                             steps = 8,
                         )
                         Text(
-                            text = "0 = mkfs.erofs default (matches MIO-KITCHEN), 9 = max compression",
+                            text = "0 = mkfs.erofs default (matches MIO-KITCHEN, recommended). Higher levels can produce EROFS bytes some lz4hc decoders refuse to mount at boot.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -398,7 +430,11 @@ private fun PatcherScreen(
                 val ts = utcInput.trim().takeIf { it.isNotEmpty() }?.toLongOrNull()
                 val pack = Patcher.PackOptions(
                     erofsCompression = compressionAlgo,
-                    erofsLevel = compressionLevel.toInt().let { if (it == 0) null else it },
+                    // Always pass an explicit level (including ,0) so the
+                    // -z argument matches MIO-KITCHEN GUI exactly. Skipping
+                    // the suffix entirely is *not* equivalent to ,0 in some
+                    // mkfs.erofs builds.
+                    erofsLevel = compressionLevel.toInt(),
                     timestamp = ts,
                 )
                 busy = true
@@ -458,6 +494,12 @@ private fun PatcherScreen(
         // --- Log (only this scrolls; takes remaining vertical space) -
         LogPanel(
             logLines = logLines,
+            onSaveLog = {
+                val ts = java.text.SimpleDateFormat(
+                    "yyyyMMdd-HHmmss", java.util.Locale.US,
+                ).format(java.util.Date())
+                saveLogLauncher.launch("malivk13-log-$ts.txt")
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f),
@@ -659,9 +701,12 @@ private fun SettingsDialog(
 @Composable
 private fun LogPanel(
     logLines: SnapshotStateList<String>,
+    onSaveLog: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
+    val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
     LaunchedEffect(logLines.size) {
         if (logLines.isNotEmpty()) {
             // scrollToItem (no animation) is what we want for streaming logs:
@@ -675,28 +720,75 @@ private fun LogPanel(
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         modifier = modifier,
     ) {
-        if (logLines.isEmpty()) {
-            Text(
-                text = "Logs will appear here.",
-                fontFamily = FontFamily.Monospace,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(12.dp),
-            )
-        } else {
-            LazyColumn(
-                state = listState,
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Header row: "Logs" label + Copy button.
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(12.dp),
+                    .fillMaxWidth()
+                    .padding(start = 12.dp, end = 4.dp, top = 4.dp),
             ) {
-                items(logLines) { line ->
-                    Text(
-                        text = line,
-                        fontFamily = FontFamily.Monospace,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface,
+                Text(
+                    text = "Logs",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.weight(1f))
+                IconButton(
+                    enabled = logLines.isNotEmpty(),
+                    onClick = onSaveLog,
+                ) {
+                    Icon(
+                        Icons.Filled.Save,
+                        contentDescription = "Save logs as .txt",
                     )
+                }
+                IconButton(
+                    enabled = logLines.isNotEmpty(),
+                    onClick = {
+                        val joined = logLines.joinToString("\n")
+                        clipboard.setText(AnnotatedString(joined))
+                        android.widget.Toast.makeText(
+                            context,
+                            "Logs copied (${logLines.size} lines)",
+                            android.widget.Toast.LENGTH_SHORT,
+                        ).show()
+                    },
+                ) {
+                    Icon(
+                        Icons.Filled.ContentCopy,
+                        contentDescription = "Copy logs",
+                    )
+                }
+            }
+
+            if (logLines.isEmpty()) {
+                Text(
+                    text = "Logs will appear here.",
+                    fontFamily = FontFamily.Monospace,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
+                )
+            } else {
+                // SelectionContainer makes individual lines selectable too,
+                // for users who prefer manual highlight + copy over the button.
+                SelectionContainer {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
+                    ) {
+                        items(logLines) { line ->
+                            Text(
+                                text = line,
+                                fontFamily = FontFamily.Monospace,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
+                    }
                 }
             }
         }
