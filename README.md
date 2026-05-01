@@ -50,7 +50,7 @@ This tool only does the *image patching* step. You still need:
 
 - **Unlocked bootloader.** Required to flash anything to `vendor`.
 - **A stock `vendor.img`.** Either dump it from your device (rooted: `dd if=/dev/block/by-name/vendor of=/sdcard/vendor.img`) or extract it from your phone's stock firmware ZIP.
-- **`fastboot`** to flash the patched image.
+- **`fastboot`** to flash the patched image. You also need to know how to reach **`fastbootd`** (userspace fastboot) on your device — the patched `vendor` is a dynamic partition inside `super`, and only fastbootd can write to it. From bootloader-fastboot run `fastboot reboot fastboot` to switch.
 - **`vbmeta` with verity disabled.** AOSP's verified-boot rejects modified `vendor.img` against the stock signed `vbmeta`. You must reflash `vbmeta` with verity off:
   ```
   fastboot flash vbmeta --disable-verity --disable-verification vbmeta.img
@@ -66,8 +66,10 @@ If any of those isn't true, the patched image **will not boot**. This is not a t
 
 1. Download `MaliVK13Patcher.exe` from the latest [GitHub Release](../../releases).
 2. Double-click. Pick your stock `vendor.img`. Pick an output path. Click **Patch**.
-3. Flash with fastboot:
+3. Flash with fastboot. **Vendor lives inside the dynamic `super` partition, so you must be in `fastbootd` (userspace fastboot), not bootloader-fastboot** — otherwise you'll get `failed to write partitions table`:
    ```bash
+   adb reboot bootloader            # or hold the hardware key combo
+   fastboot reboot fastboot         # switch from bootloader-fastboot -> fastbootd
    fastboot flash vendor MaliVK13Patcher_output.img
    fastboot reboot
    ```
@@ -76,8 +78,10 @@ If any of those isn't true, the patched image **will not boot**. This is not a t
 
 1. Download `MaliVK13Patcher` (single-file ELF) from the latest [GitHub Release](../../releases).
 2. `chmod +x MaliVK13Patcher && ./MaliVK13Patcher`. Pick your stock `vendor.img`. Pick an output path. Click **Patch**.
-3. Flash with fastboot:
+3. Flash with fastboot. **Vendor lives inside the dynamic `super` partition, so you must be in `fastbootd` (userspace fastboot), not bootloader-fastboot** — otherwise you'll get `failed to write partitions table`:
    ```bash
+   adb reboot bootloader            # or hold the hardware key combo
+   fastboot reboot fastboot         # switch from bootloader-fastboot -> fastbootd
    fastboot flash vendor MaliVK13Patcher_output.img
    fastboot reboot
    ```
@@ -90,7 +94,14 @@ The Linux build is x86_64 only and uses the same Tkinter GUI as the Windows vers
 2. Open the app. Tap **Pick input vendor.img** and select your stock vendor image (anywhere via the system file picker).
 3. Tap **Pick output location** and pick where to save the patched image.
 4. Tap **Patch**. Wait for it to finish.
-5. Pull the patched image to a PC, boot the phone into fastboot, flash with `fastboot flash vendor`.
+5. Pull the patched image to a PC, boot the phone into fastboot, then **switch to `fastbootd`** (vendor is a dynamic partition):
+   ```bash
+   adb reboot bootloader
+   fastboot reboot fastboot         # bootloader-fastboot -> fastbootd
+   fastboot flash vendor vendor_patched.img
+   fastboot reboot
+   ```
+   Skipping `fastboot reboot fastboot` produces `failed to write partitions table`.
 
 The APK does **not** require root — it only needs read access to your input file and write access to your output location, both negotiated through the system file picker. (We can't flash from inside the app anyway — Android won't let user-space apps write to `/dev/block/by-name/vendor` without root.)
 
