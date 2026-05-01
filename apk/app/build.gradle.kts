@@ -16,8 +16,8 @@ android {
         applicationId = "io.github.swaggyxren.malivk13patcher"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "1.0.2"
+        versionCode = 4
+        versionName = "1.0.3"
         ndk {
             abiFilters.add("arm64-v8a")
         }

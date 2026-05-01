@@ -28,7 +28,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -66,8 +68,10 @@ import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -662,6 +666,8 @@ private fun LogPanel(
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
+    val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
     LaunchedEffect(logLines.size) {
         if (logLines.isNotEmpty()) {
             // scrollToItem (no animation) is what we want for streaming logs:
@@ -675,28 +681,66 @@ private fun LogPanel(
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         modifier = modifier,
     ) {
-        if (logLines.isEmpty()) {
-            Text(
-                text = "Logs will appear here.",
-                fontFamily = FontFamily.Monospace,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(12.dp),
-            )
-        } else {
-            LazyColumn(
-                state = listState,
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Header row: "Logs" label + Copy button.
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(12.dp),
+                    .fillMaxWidth()
+                    .padding(start = 12.dp, end = 4.dp, top = 4.dp),
             ) {
-                items(logLines) { line ->
-                    Text(
-                        text = line,
-                        fontFamily = FontFamily.Monospace,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface,
+                Text(
+                    text = "Logs",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.weight(1f))
+                IconButton(
+                    enabled = logLines.isNotEmpty(),
+                    onClick = {
+                        val joined = logLines.joinToString("\n")
+                        clipboard.setText(AnnotatedString(joined))
+                        android.widget.Toast.makeText(
+                            context,
+                            "Logs copied (${logLines.size} lines)",
+                            android.widget.Toast.LENGTH_SHORT,
+                        ).show()
+                    },
+                ) {
+                    Icon(
+                        Icons.Filled.ContentCopy,
+                        contentDescription = "Copy logs",
                     )
+                }
+            }
+
+            if (logLines.isEmpty()) {
+                Text(
+                    text = "Logs will appear here.",
+                    fontFamily = FontFamily.Monospace,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
+                )
+            } else {
+                // SelectionContainer makes individual lines selectable too,
+                // for users who prefer manual highlight + copy over the button.
+                SelectionContainer {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
+                    ) {
+                        items(logLines) { line ->
+                            Text(
+                                text = line,
+                                fontFamily = FontFamily.Monospace,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
+                    }
                 }
             }
         }
